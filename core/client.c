@@ -259,7 +259,16 @@ const char *vjo_err_text(VjoArena *a, int stage, const VjoErr *err)
                        what, err->tls_error);
         break;
     case VJO_E_OOM:
-        vjo_buf_printf(&b, "%s failed: not enough memory", what);
+        if (stage == VJO_STAGE_OCR)
+            vjo_buf_puts(&b, "Text recognition failed: not enough memory. Press □ and select a smaller area.");
+        else
+            vjo_buf_printf(&b, "%s failed: not enough memory", what);
+        break;
+    case VJO_E_SOURCE:
+        if (stage == VJO_STAGE_OCR)
+            vjo_buf_puts(&b, "Screen capture failed. Close the overlay and try again.");
+        else
+            vjo_buf_printf(&b, "%s failed: source read error", what);
         break;
     case VJO_E_TOO_LARGE:
         vjo_buf_printf(&b, "%s failed: response too large", what);

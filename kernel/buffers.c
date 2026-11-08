@@ -1,5 +1,5 @@
-/* Per-game capture buffer. Allocated when a game starts and freed when it
- * exits, never at boot, so nothing is held while no game runs. */
+/* Capture buffer, allocated for the requested rectangle and released after
+ * the JPEG reader consumes its last row. Adapted from Rubi v0.7.12. */
 #include <psp2kern/kernel/sysclib.h>
 #include <psp2kern/kernel/sysmem.h>
 
@@ -12,24 +12,36 @@
  * so it needs neither physical contiguity nor cache maintenance. */
 #define RAW_SIZE ALIGN(VJO_MAX_W * VJO_MAX_H * 4, 0x1000)
 
-int buffers_alloc(void)
+int buffers_alloc(uint32_t bytes)
 {
     void *base = NULL;
     SceUID uid;
 
-    if (g.mem_uid > 0)
+    if (!bytes || bytes > RAW_SIZE || g.capture_state != CAPTURE_IDLE)
+        return VJO_ERR_ARG;
+    bytes = ALIGN(bytes, 0x1000);
+    if (g.mem_uid > 0 && g.raw && g.raw_capacity == bytes)
         return 0;
-    uid = ksceKernelAllocMemBlock("VjoCapture", SCE_KERNEL_MEMBLOCK_TYPE_KERNEL_RW, RAW_SIZE, NULL);
+    buffers_free();
+    g.raw_valid = 0;
+    uid = ksceKernelAllocMemBlock("VjoCapture", SCE_KERNEL_MEMBLOCK_TYPE_KERNEL_RW, bytes, NULL);
     if (uid < 0) {
-        klog("alloc capture buffer (%u KiB) failed 0x%08X", RAW_SIZE >> 10, uid);
-        g.alloc_status = VJO_ALLOC_FAIL;
+        klog("alloc capture buffer (%u KiB) failed 0x%08X", bytes >> 10, uid);
+        /* v0.7's shell treats ALLOC_FAIL as a permanent preflight failure.
+         * Keep NONE so a failed full-frame Anki screenshot cannot prevent
+         * the next, smaller OCR request. The request returns NO_MEMORY. */
         return uid;
     }
-    ksceKernelGetMemBlockBase(uid, &base);
+    if (ksceKernelGetMemBlockBase(uid, &base) < 0 || !base) {
+        ksceKernelFreeMemBlock(uid);
+        klog("capture buffer base unavailable");
+        return VJO_ERR_NO_MEMORY;
+    }
     g.mem_uid = uid;
     g.raw = (uint8_t *)base;
+    g.raw_capacity = bytes;
     g.alloc_status = VJO_ALLOC_OK;
-    klog("capture buffer: %u KiB at %p", RAW_SIZE >> 10, base);
+    klog("capture buffer: %u KiB at %p", bytes >> 10, base);
     return 0;
 }
 
@@ -41,5 +53,15 @@ void buffers_free(void)
     }
     g.mem_uid = 0;
     g.raw = NULL;
+    g.raw_capacity = 0;
+    g.raw_valid = 0;
     g.alloc_status = VJO_ALLOC_NONE;
+}
+
+void buffers_read_done(uint32_t row, uint32_t rows)
+{
+    /* v0.7's only raw reader is the JPEG encoder, in increasing 16-row
+     * bands. This runs under VJO_LOCK, after a successful user copy. */
+    if (g.raw_valid && row < g.crop_h && rows >= g.crop_h - row)
+        buffers_free();
 }

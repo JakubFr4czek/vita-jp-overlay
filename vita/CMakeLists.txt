@@ -25,6 +25,7 @@ add_executable(VitaJPOverlay_Kernel
   ${ROOT}/kernel/main.c
   ${ROOT}/kernel/log.c
   ${ROOT}/kernel/buffers.c
+  ${ROOT}/kernel/request.c
   ${ROOT}/kernel/capture.c
   ${ROOT}/kernel/display.c
   ${ROOT}/kernel/input.c

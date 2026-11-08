@@ -350,7 +350,9 @@ static void enter_region_mode(void)
     s_drag = 0;
     s_has_rect = 0;
     s_square_down_us = sceKernelGetProcessTimeWide();
-    s_square_clear_armed = 1;
+    /* The press that opens the selector must not also clear the selection.
+     * Full screen requires releasing □ and holding it a second time. */
+    s_square_clear_armed = 0;
     if (s_panel)
         s_panel->Hide();
     if (s_region_layer)
@@ -358,7 +360,7 @@ static void enter_region_mode(void)
     if (s_region_rect)
         s_region_rect->Hide();
     set_rich(s_region_hint, "<font color=\"#ffffff\">Drag on the screen to select the text area · "
-                            "× confirm · ○ cancel · hold □ for full screen</font>");
+                            "× recognize · ○ last result · hold □ again for full screen</font>");
 }
 
 static void leave_region_mode(void)
@@ -440,6 +442,9 @@ static void open_page(void)
     s_stick_max = 0;
     s_prev_buttons = ~0u; /* ignore buttons already held when opening */
     s_prev_touch = 1;
+    /* Open straight into area selection: × recognizes the new area, ○ shows
+     * the result for the saved one. */
+    enter_region_mode();
 }
 
 static void close_page(void)
@@ -567,7 +572,7 @@ static void input_region(uint32_t held, uint32_t pressed)
     }
     s_prev_touch = touching;
 
-    /* hold □ (from entering region mode) for 1 s -> full screen */
+    /* A new press, held for 1 s, clears the selected region. */
     if (!(held & SCE_CTRL_SQUARE))
         s_square_clear_armed = 0;
     if (pressed & SCE_CTRL_SQUARE) {

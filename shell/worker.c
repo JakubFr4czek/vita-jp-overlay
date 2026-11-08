@@ -702,9 +702,23 @@ static void on_command(void)
             vjo_log("region.ini: write failed");
         push_region();
         cache_ok = 0;
-        close_overlay();
-        if (subtitles)
+        /* The old request belongs to the old rectangle, even if its pixels
+         * are unchanged. Keep the overlay open and replace its result. */
+        if (job_running && !job_cancelled) {
+            job_cancelled = 1;
+            vjo_net_cancel(&net_cancel);
+            vjo_log("job cancelled: OCR region changed");
+        }
+        if (ov != OV_CLOSED) {
+            ov = OV_OPEN;
+            view_waiting = 1;
+            view_job_text = 0;
+            view_publish(1, NULL, "Recognizing…", 0);
+            if (!job_running)
+                start_job("region changed", 1);
+        } else if (subtitles && !job_running) {
             start_job("region changed", want_lookup());
+        }
         break;
     }
 }
@@ -927,7 +941,7 @@ int vjo_worker_start(void)
     vjo_arena_init(&results[0], NULL, 0);
     vjo_arena_init(&results[1], NULL, 0);
     apply_config(); /* logging, the trigger and Anki are set up before the first game */
-    vjo_log("Vita JP Overlay shell started (kernel API %d)", ver);
+    vjo_log("Vita JP Overlay shell started (kernel API %d, flow fix 3)", ver);
 
     net_thread = sceKernelCreateThread("VjoNet", net_main, 0x10000100, 0x10000, 0, 0, NULL);
     ctl_thread = sceKernelCreateThread("VjoControl", ctl_main, 0x10000100, 0x4000, 0, 0, NULL);

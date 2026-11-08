@@ -7,6 +7,27 @@ The idea comes from [meikidroid](https://github.com/rtr46/meikidroid)
 
 ![The overlay over a visual novel: the recognized text with the selected word highlighted, and its jiten.moe entry below](docs/screenshot.jpg)
 
+## Changes in this fork
+
+Based on v0.7. Tested on one console, with NOBORU:
+
+- **Smaller capture buffer.** The kernel allocates only the selected area and frees it once the
+  shell has read the rows (adapted from Rubi v0.7.12). v0.7 reserved a full-frame buffer (about
+  2 MB) for every OCR, which failed with `0x80024302`, shown as "not enough memory to capture
+  the screen".
+- **Anki screenshot at half size.** The screenshot is the whole frame scaled to 480×272 (2×2
+  average), about 510 KB instead of 2 MB, so it no longer fails with "the capture failed".
+- **Area selection opens with the overlay.** × recognizes the new area and the overlay stays
+  open with the result; ○ shows the result for the saved area. Holding □ again sets the full
+  screen; the press that enters selection no longer clears it.
+- **Clearer errors.** Out of memory during OCR says so (instead of `-108`), with a hint to
+  select a smaller area.
+
+Build with a current vitasdk (`tools/setup_toolchain.sh`). A 2022 vitasdk built a shell plugin
+that differed from the official one (an extra process-param export, `ScePaf` instead of
+`ScePafStdc`, no `.ARM.exidx`), and the console no longer booted with it. With the current
+vitasdk, the unchanged v0.7 source builds byte-for-byte identical to the official release.
+
 ## Requirements
 
 - A PS Vita on firmware 3.60 to 3.74 with HENkaku Ensō or h-encore.

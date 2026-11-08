@@ -43,12 +43,14 @@ typedef struct {
     /* per-game capture buffer (see buffers.c) */
     SceUID mem_uid;
     uint8_t *raw;           /* A8B8G8R8, crop_h rows of raw_stride bytes */
+    uint32_t raw_capacity;
     volatile int alloc_status;
 
     /* capture */
     volatile int capture_state; /* CAPTURE_*, claimed with __sync CAS */
     int capture_result;
     uint32_t crop_w, crop_h;   /* captured pixels */
+    uint32_t capture_x, capture_y, capture_fb_w, capture_fb_h;
     uint32_t raw_stride;       /* bytes per row in raw */
     SceneSig capture_sig;      /* of the captured region (not for capture_full) */
     uint32_t capture_scene;    /* scene of the captured pixels, 0 = unknown */
@@ -93,8 +95,12 @@ static inline int capture_claim(void)
 int klog_read(char *dst, int len);
 
 /* buffers.c */
-int buffers_alloc(void);
+int buffers_alloc(uint32_t bytes);
 void buffers_free(void);
+void buffers_read_done(uint32_t row, uint32_t rows);
+
+/* request.c: snapshot geometry and allocate before publishing a request. */
+int capture_request(uint32_t flags);
 
 /* capture.c */
 void capture_compute_crop(uint32_t fb_w, uint32_t fb_h, uint32_t *x, uint32_t *y, uint32_t *w,

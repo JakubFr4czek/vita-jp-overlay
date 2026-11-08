@@ -5,6 +5,7 @@
 #include <psp2/kernel/threadmgr.h>
 
 #include "../core/jpegsw.h"
+#include "capture_error.h"
 #include "shell.h"
 
 #define CAPTURE_TIMEOUT_US 3000000
@@ -42,7 +43,7 @@ int vjo_capture_jpeg(VjoArena *a, uint32_t flags, int quality, VjoBuf *out, VjoS
 
     /* Held until the last row is read: another request would invalidate them. */
     sceKernelLockMutex(capture_lock, 1, NULL);
-    seq = vjoRequestCapture(flags);
+    seq = vjo_capture_normalize_result(vjoRequestCapture(flags));
     if (seq < 0) {
         vjo_log("capture request failed %d", seq);
         rc = seq == VJO_ERR_NO_MEMORY ? VJO_E_OOM : VJO_E_SOURCE;

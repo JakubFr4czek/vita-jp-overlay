@@ -117,16 +117,44 @@ int capture_copy(uintptr_t base, uint32_t pitch, uint32_t fmt, uint32_t w, uint3
     if (!fmt_supported(fmt))
         return VJO_ERR_FORMAT;
     bpp = fmt_bpp(fmt);
+    w = w > VJO_MAX_W ? VJO_MAX_W : w;
+    h = h > VJO_MAX_H ? VJO_MAX_H : h;
+    x = g.capture_x;
+    y = g.capture_y;
+    cw = g.crop_w;
+    ch = g.crop_h;
+    /* A mode/region change must never make a small allocation overflow. */
+    if (w != g.capture_fb_w || h != g.capture_fb_h || !cw || !ch ||
+        pitch < w || x > w || cw > w - x || y > h || ch > h - y ||
+        cw * ch * 4 > g.raw_capacity)
+        return VJO_ERR_ARG;
     if (full) {
-        x = y = 0;
-        cw = w > VJO_MAX_W ? VJO_MAX_W : w;
-        ch = h > VJO_MAX_H ? VJO_MAX_H : h;
-    } else {
-        capture_compute_crop(w, h, &x, &y, &cw, &ch);
-        scene_acc_begin(&acc, &g.capture_sig, cw, ch);
+        /* Whole frame at half size: each output pixel is the average of a
+         * 2x2 block. Same-process reads only, like the region path. */
+        static uint32_t ra[VJO_MAX_W], rb[VJO_MAX_W];
+        if (x || y || cw != (w >> 1) || ch != (h >> 1) || cw * 2 > VJO_MAX_W)
+            return VJO_ERR_ARG;
+        stride = g.raw_stride = cw * 4;
+        for (uint32_t row = 0; row < ch; row++) {
+            uint32_t *out = (uint32_t *)(g.raw + row * stride);
+            uintptr_t src = base + (uintptr_t)(2 * row) * pitch * bpp;
+            if (read_row((uint8_t *)ra, tmp, src, cw * 2, fmt) < 0 ||
+                read_row((uint8_t *)rb, tmp, src + (uintptr_t)pitch * bpp, cw * 2, fmt) < 0)
+                return VJO_ERR_COPY;
+            for (uint32_t i = 0; i < cw; i++) {
+                uint32_t p0 = ra[2 * i], p1 = ra[2 * i + 1], p2 = rb[2 * i], p3 = rb[2 * i + 1];
+                uint32_t c0 = ((p0 & 0xFF) + (p1 & 0xFF) + (p2 & 0xFF) + (p3 & 0xFF) + 2) >> 2;
+                uint32_t c1 = (((p0 >> 8) & 0xFF) + ((p1 >> 8) & 0xFF) + ((p2 >> 8) & 0xFF) +
+                               ((p3 >> 8) & 0xFF) + 2) >> 2;
+                uint32_t c2 = (((p0 >> 16) & 0xFF) + ((p1 >> 16) & 0xFF) + ((p2 >> 16) & 0xFF) +
+                               ((p3 >> 16) & 0xFF) + 2) >> 2;
+                out[i] = 0xFF000000u | (c2 << 16) | (c1 << 8) | c0;
+            }
+        }
+        return 0;
     }
-    g.crop_w = cw;
-    g.crop_h = ch;
+    if (!full)
+        scene_acc_begin(&acc, &g.capture_sig, cw, ch);
     stride = g.raw_stride = cw * 4;
 
     for (uint32_t row = 0; row < ch; row++) {
