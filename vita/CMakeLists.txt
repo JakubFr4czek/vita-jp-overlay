@@ -114,6 +114,33 @@ target_link_libraries(VitaJPOverlay_Shell
 vita_create_self(VitaJPOverlay_Shell.suprx VitaJPOverlay_Shell
   UNSAFE
   CONFIG ${ROOT}/shell/exports.yml)
+vita_create_stubs(vjo_shell_stubs VitaJPOverlay_Shell ${ROOT}/shell/exports.yml)
+
+# ---------------- Quick Menu widget ----------------
+# A QuickMenuReborn plugin: copied with its icon to ur0:QuickMenuReborn/, no
+# config.txt line. All imports are weak: without QuickMenuReborn or the shell
+# plugin the widget does nothing.
+set(QMR_STUBS ${CMAKE_CURRENT_BINARY_DIR}/qmr_stubs)
+file(MAKE_DIRECTORY ${QMR_STUBS})
+execute_process(COMMAND ${VITA_LIBS_GEN} -c ${ROOT}/third_party/quickmenureborn/QuickMenuReborn.yml ${QMR_STUBS}
+  RESULT_VARIABLE QMR_STUBS_RESULT)
+if(NOT QMR_STUBS_RESULT EQUAL 0)
+  message(FATAL_ERROR "vita-libs-gen failed for QuickMenuReborn.yml")
+endif()
+add_subdirectory(${QMR_STUBS} ${CMAKE_CURRENT_BINARY_DIR}/qmr_stubs_build)
+
+add_executable(VitaJPOverlay_Widget ${ROOT}/widget/main.c)
+add_dependencies(VitaJPOverlay_Widget vjo_shell_stubs)
+target_include_directories(VitaJPOverlay_Widget PRIVATE ${ROOT}/third_party/quickmenureborn)
+target_compile_options(VitaJPOverlay_Widget PRIVATE -Wall -Wextra -Wno-unused-parameter -Os -fno-builtin)
+target_link_directories(VitaJPOverlay_Widget PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/vjo_shell_stubs)
+target_link_options(VitaJPOverlay_Widget PRIVATE -nostdlib -nostartfiles -Wl,-q)
+target_link_libraries(VitaJPOverlay_Widget
+  QuickMenuReborn_stub_weak
+  VitaJPOverlay_Shell_stub_weak)
+vita_create_self(VitaJPOverlay_Widget.suprx VitaJPOverlay_Widget
+  UNSAFE
+  CONFIG ${ROOT}/widget/exports.yml)
 
 # ---------------- RCO ----------------
 find_program(PSP2CXML psp2cxml-tool HINTS ${ROOT}/.refs/toolchain/psp2cxml-tool/mbuild ${ROOT}/.refs/psp2cxml-tool/mbuild ENV PATH REQUIRED)

@@ -1,5 +1,6 @@
-/* Kernel <-> SceShell interface of Vita JP Overlay. Shared by kernel/,
- * shell/ and core/ (for the plain data types). */
+/* Kernel <-> SceShell interface of Vita JP Overlay, and the SceShell plugin's
+ * export to the Quick Menu widget. Shared by kernel/, shell/, widget/ and
+ * core/ (for the plain data types). */
 #ifndef VJO_API_H
 #define VJO_API_H
 
@@ -101,6 +102,10 @@ int vjoSetInputBlock(int on);            /* block all game input (not the shell)
 int vjoPollInput(VjoInput *out);         /* raw pad, unfiltered */
 int vjoRequestCapture(uint32_t flags);   /* VJO_CAPTURE_*; returns seq > 0; raw rows, the shell encodes the JPEG */
 int vjoReadRaw(uint32_t row, uint32_t n, void *dst);      /* returns rows copied */
+
+/* Exported by VitaJPOverlay_Shell (library VitaJPOverlayShell) to the Quick
+ * Menu widget in the same process. The overlay is on after every boot. */
+void vjoShellSetEnabled(int on);
 #endif
 
 #endif

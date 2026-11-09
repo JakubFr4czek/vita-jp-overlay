@@ -6,3 +6,7 @@ VitaJPOverlay_Shell:
   main:
     start: module_start
     stop: module_stop
+  libraries:
+    VitaJPOverlayShell:
+      functions:
+        - vjoShellSetEnabled

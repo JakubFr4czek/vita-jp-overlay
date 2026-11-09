@@ -79,6 +79,10 @@ enum { OV_CLOSED, OV_OPEN, OV_OPEN_OLD_JOB };
 static int ov = OV_CLOSED;
 static int subtitles; /* written by set_subtitles only */
 static int stable_pending;
+/* The Quick Menu checkbox: SceShell's main thread asks, the control thread
+ * follows (on_overlay_toggled). */
+static volatile int overlay_enabled_request = 1;
+static int overlay_enabled = 1;
 /* The overlay waits for the running job ("Recognizing…"), or shows its
  * sentence before the lookup: job_text_list, in the job's arena, which
  * must not be shown once another job starts in it. */
@@ -142,6 +146,11 @@ void vjo_post_command(int cmd, const VjoRect *rect)
     if (rect)
         pending_rect = *rect;
     sceKernelUnlockMutex(cmd_lock, 1);
+}
+
+void vjoShellSetEnabled(int on)
+{
+    overlay_enabled_request = on != 0;
 }
 
 static int64_t now_us(void)
@@ -798,6 +807,27 @@ static void on_game_start(void)
     pending_since = now_us();
 }
 
+/* The Quick Menu checkbox changed. Off: the kernel is told the foreground
+ * process is no game, which stops its triggers, the hiding of their buttons
+ * and its screen watching, and the shell drops the game as if it had exited.
+ * On: the foreground process is classified as after a game start. */
+static void on_overlay_toggled(void)
+{
+    overlay_enabled = !overlay_enabled;
+    vjo_log("overlay switched %s in the Quick Menu", overlay_enabled ? "on" : "off");
+    if (overlay_enabled) {
+        on_game_start();
+        return;
+    }
+    if (game_active()) {
+        VjoState st;
+        st.size = sizeof(st);
+        vjoGetState(&st);
+        vjoSetGameActive(st.game_pid, VJO_GAME_NONE);
+    }
+    on_game_exit();
+}
+
 static void on_trigger(void)
 {
     if (ov != OV_CLOSED)
@@ -884,7 +914,9 @@ static int ctl_main(SceSize args, void *argp)
             on_game_exit();
         if (bits & VJO_EV_GAME_START)
             on_game_start();
-        if (pending_pid > 0)
+        if (overlay_enabled != overlay_enabled_request)
+            on_overlay_toggled();
+        if (pending_pid > 0 && overlay_enabled)
             classify_pending();
         if (bits & VJO_EV_TRIGGER)
             on_trigger();
